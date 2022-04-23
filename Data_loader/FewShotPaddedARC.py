@@ -115,29 +115,30 @@ class FewShotPaddedARC(ARC):
         elif kind=='meta_test':taskL=[self.get_task(taskid,kind) for taskid in self.ntrain]
         return [taskL[taskid][trte][k][inout] for k in range(len(taskL[taskid][trte]))]
 
-
+import os
 class DataLoader():
     def __init__(self, data_path):
+        print(os.getcwd() )
         if(data_path == "FewShotPaddedARC"):
-            with open('./Data/FewShotPaddedARC.pickle','rb') as f: 
+            with open(str(os.getcwd()) + '/Data_loader/Data/FewShotPaddedARC.pickle','rb') as f: 
                 b=pickle.load(f)
                 b.cmap=colors.ListedColormap(['#000000', '#0074D9','#FF4136','#2ECC40','#FFDC00','#AAAAAA', '#F012BE', '#FF851B', '#7FDBFF', '#870C25'])
                 b.norm=colors.Normalize(vmin=0, vmax=9)
                 self.data = b
         else:
-            with open('./Data/FewShotARC.pickle','rb') as f: 
+            with open(str(os.getcwd()) + '/Data_loader/Data/FewShotARC.pickle','rb') as f: 
                 a=pickle.load(f)
                 a.cmap=colors.ListedColormap(['#000000', '#0074D9','#FF4136','#2ECC40','#FFDC00','#AAAAAA', '#F012BE', '#FF851B', '#7FDBFF', '#870C25'])
                 a.norm=colors.Normalize(vmin=0, vmax=9)
                 self.data = a
-        self.train_tasks = self.data.trn_tasks
-        self.test_tasks = self.data.ntest
+        self.train_tasks = len(self.data.meta_train_tasks)
+        self.test_tasks = len(self.data.meta_test_tasks)
     def get_task(self, kind = "meta_train", technique = 2):
         ind = 0
         if(kind == "meta_train"):
-            ind = random.randint(0, self.train_task - 1)
+            ind = random.randint(0, self.train_tasks - 1)
         else:
-            ind = random.randint(0, self.test_task - 1)
+            ind = random.randint(0, self.test_tasks - 1)
         # print(ind)
         b = self.data.get_fs_task(ind, kind)
         train = b["train"]
