@@ -17,12 +17,12 @@ class OptionsDataset():
         return self.meta_train_tasks[r]
     def get_meta_test_task(self,r):
         return self.meta_train_tasks[r]
-
+import os
 class DataLoaderOptions():
     def __init__(self) -> None:
-        with open('./Data/optionsMetaTasksPE.pickle','rb') as f: self.options_dataset_PE =pickle.load(f)
+        with open(str(os.getcwd()) + '/Data_loader/Data/optionsMetaTasksPE.pickle','rb') as f: self.options_dataset_PE =pickle.load(f)
          
-        with open('./Data/optionsMetaTasksCE.pickle','rb') as f: self.options_dataset_CE=pickle.load(f)
+        with open(str(os.getcwd()) + '/Data_loader/Data/optionsMetaTasksCE.pickle','rb') as f: self.options_dataset_CE=pickle.load(f)
 
         self.len_meta_train_PE = len(self.options_dataset_PE.meta_train_tasks)
         self.len_meta_test_PE = len(self.options_dataset_PE.meta_test_tasks)
@@ -62,7 +62,6 @@ if __name__ == "__main__":
     train, test = loader.get_task("meta_train", "PE")
     print(train[0].shape, train[1].shape)
     print(test[0].shape, test[1].shape)
-
     train, test = loader.get_task("meta_test", "CE")
     print(train[0].shape, train[1].shape)
     print(test[0].shape, test[1].shape)

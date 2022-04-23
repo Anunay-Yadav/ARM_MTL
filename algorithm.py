@@ -2,7 +2,7 @@ from sklearn import model_selection
 import torch.nn as nn
 import torch
 import numpy as np
-from Data_loader.FewShotPaddedARC import *
+from Data_loader.OptionData import *
 import modules as model
 class ARM_CML(nn.Module):
     def __init__(self, model_context, model_prediction, labels_type = "market", learning_rate = 1e-5) -> None:
@@ -72,16 +72,17 @@ class ARM_CML(nn.Module):
         loss.backward()
         self.optimizer.step()
     
-    # def accuracy(self, logits, Y):
-    #     preds = np.argmax(logits.detach().cpu().numpy(), axis=1)
-    #     accuracy = np.mean(preds == Y.detach().cpu().numpy().reshape(-1))
-    #     return accuracy
-    def accuracy(Net,logits,y_test):
+    def accuracy(self, logits, Y):
+        preds = np.argmax(logits.detach().cpu().numpy(), axis=1)
+        accuracy = np.mean(preds == Y.detach().cpu().numpy().reshape(-1))
+        return accuracy
+        
+    def accuracy_arc(Net,logits,y_test):
         #Net.eval()
         m = 0
         y_pred = logits
         prob, predicted = torch.max(y_pred, 1)
-        correct = 0;
+        correct = 0
         for i in range(0, y_test.size(0), 4):
             cnt = 0
             for j in range(4):
@@ -94,15 +95,15 @@ class ARM_CML(nn.Module):
         return accuracy
 
 if __name__ == "__main__":
-    loader = DataLoader("FewShotPaddedARC")
-    model_context = model.MLP(dims = [200, 124, 200])
-    model_pred = model.MLP(dims=[400, 64, 32, 2])
+    loader = DataLoaderOptions()
+    model_context = model.MLP(dims = [148, 124, 148])
+    model_pred = model.MLP(dims=[296, 64, 32, 2])
     arm_model = ARM_CML(model_context=model_context, model_prediction=model_pred, labels_type="arc", learning_rate=1e-6)
     for j in range(1000):
         acc = 0
         for i in range(100):
-            train, test = loader.get_task("meta_train")
+            train, test = loader.get_task("meta_train", "CE")
             arm_model.learnStream(train[0], train[1], test[0], test[1])
-            train, test = loader.get_task("meta_test")
-            acc += arm_model.accuracy(arm_model.predict(train[0]), train[1])
+            train, test = loader.get_task("meta_test", "PE")
+            acc += arm_model.accuracy(arm_model.predict(test[0]), test[1])
         print(acc/100)
