@@ -25,14 +25,11 @@ class ARM_CML(nn.Module):
         self.optimizer = torch.optim.Adam(params, lr = self.learning_rate)
 
     def predictStream(self, X_train, X_test):
-        context = self.model_context(X_train[0])
-        for i in range(1, len(X_train)):
-            context += self.model_context(X_train[i])
-        for i in range(X_test):
-            context += self.model_context(X_test[i])
-        context /= (len(X_test) + len(X_train))
+        context = torch.sum(self.model_context(X_test), 0)
+        context = torch.sum(self.model_context(X_train), 0) + context
+        context /= (X_test.size(0) + X_train.size(0))
 
-        X = self.addContext(X_test)
+        X = self.addContext(X_test, context)
         return self.model_prediction(X)
 
     def predict(self, X_test):
@@ -60,7 +57,7 @@ class ARM_CML(nn.Module):
         for loss_fn in self.loss:
             loss += loss_fn(logits, Y_test)
         
-        self.optimzer.zero_grad()
+        self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
@@ -103,9 +100,9 @@ if __name__ == "__main__":
     arm_model = ARM_CML(model_context=model_context, model_prediction=model_pred, labels_type="arc", learning_rate=1e-6)
     for j in range(1000):
         acc = 0
-        for i in range(1000):
+        for i in range(100):
             train, test = loader.get_task("meta_train")
-            arm_model.learn(train[0], train[1])
+            arm_model.learnStream(train[0], train[1], test[0], test[1])
             train, test = loader.get_task("meta_test")
             acc += arm_model.accuracy(arm_model.predict(train[0]), train[1])
         print(acc/100)
