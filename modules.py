@@ -70,7 +70,7 @@ class CNN(nn.Module):
         return x
 
 class SimpleRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size,lr):
+    def __init__(self, input_size, hidden_size, num_layers, output_size, task = "classification", lr = 1e-4):
         # This just calls the base class constructor
         super().__init__()
         # Neural network layers assigned as attributes of a Module subclass
@@ -80,7 +80,9 @@ class SimpleRNN(nn.Module):
         self.rnn = torch.nn.RNN(input_size, hidden_size, num_layers = num_layers, nonlinearity='relu', batch_first=True)
         self.linear = torch.nn.Linear(hidden_size, output_size)
         self.logsoft = nn.LogSoftmax(dim=-1)
+        self.relu = nn.ReLU()
         self.optimizer = optim.Adam(self.parameters(),lr=lr)
+        self.task = task
     def forward(self, x):
         # torch.nn.RNN also returns its hidden state but we don't use it.
         # While the RNN can also take a hidden state as input, the RNN
@@ -93,11 +95,13 @@ class SimpleRNN(nn.Module):
 
         x = x[:, -1, :].contiguous().view(-1, self.hidden_size)
         x = self.linear(x)
-        x = self.logsoft(x)
+        # x = self.relu(x)
+        if(self.task == "classification"):
+            x = self.logsoft(x)
         return x
 
 class SimpleGRU(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size,lr):
+    def __init__(self, input_size, hidden_size, num_layers, output_size, task = "classification", lr = 0.00005):
         # This just calls the base class constructor
         super().__init__()
         # Neural network layers assigned as attributes of a Module subclass
@@ -107,6 +111,7 @@ class SimpleGRU(nn.Module):
         self.gru = torch.nn.GRU(input_size, hidden_size, num_layers = num_layers, batch_first=True)
         self.linear = torch.nn.Linear(hidden_size, output_size)
         self.logsoft = nn.LogSoftmax(dim=-1)
+        self.task = task
         self.optimizer = optim.Adam(self.parameters(),lr=lr)
 
     def forward(self, x):
@@ -120,35 +125,10 @@ class SimpleGRU(nn.Module):
 
         x = x[:, -1, :].contiguous().view(-1, self.hidden_size)
         x = self.linear(x)
-        x = self.logsoft(x)
+        if(self.task == "classification"):
+            x = self.logsoft(x)
         return x
 
-class SimpleGRU(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers, output_size,lr):
-        # This just calls the base class constructor
-        super().__init__()
-        # Neural network layers assigned as attributes of a Module subclass
-        # have their parameters registered for training automatically.
-        self.input_size=input_size
-        self.hidden_size = hidden_size
-        self.gru = torch.nn.GRU(input_size, hidden_size, num_layers = num_layers, batch_first=True)
-        self.linear = torch.nn.Linear(hidden_size, output_size)
-        self.logsoft = nn.LogSoftmax(dim=-1)
-        self.optimizer = optim.Adam(self.parameters(),lr=lr)
-
-    def forward(self, x):
-        # torch.nn.RNN also returns its hidden state but we don't use it.
-        # While the RNN can also take a hidden state as input, the RNN
-        # gets passed a hidden state initialized with zeros by default.
-        if self.input_size==1: x=x.unsqueeze(-1)
-        ### INSERT YOUR CODE HERE
-
-        x, hidden_states = self.gru(x)
-
-        x = x[:, -1, :].contiguous().view(-1, self.hidden_size)
-        x = self.linear(x)
-        x = self.logsoft(x)
-        return x
 
 import numpy as np
 
