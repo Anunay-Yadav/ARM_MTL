@@ -31,14 +31,18 @@ class MLP(nn.Module):
         for i in range(1, len(dims)):
           self.linear_layers.append(nn.Linear(dims[i-1], dims[i]))
         self.relu = nn.ReLU()
+        self.task = task
         self.logsoft = nn.LogSoftmax(dim=-1)
         self.optimizer = optim.Adam(self.parameters(),lr=lr)
     def forward(self,x):
         ### Insert your code here
-        for i in range(len(self.linear_layers)):
+        for i in range(len(self.linear_layers) - 1):
           x = self.linear_layers[i](x)
           x = self.relu(x)
-
+        x = self.linear_layers[-1](x)
+        x = self.relu(x)
+        if(self.task == "regression"):
+            return x
         return self.logsoft(x)
         
 class CNN(nn.Module):

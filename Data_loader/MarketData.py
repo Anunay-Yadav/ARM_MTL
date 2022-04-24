@@ -57,7 +57,7 @@ class TsDS(Dataset):
         elif kind=='flat':
             self.samples=[torch.tensor(scaler.inverse_transform(s)).float() for s in self.samples]
 import random
-
+import os
 class DataLoaderMarket():
     def __init__(self) -> None:
         self.meta_test_cs = []
@@ -69,12 +69,12 @@ class DataLoaderMarket():
             for j in range(test_flat[1]):
                 train_data = []
                 test_data = []
-                with open('./Data/market_data/train_cs_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
+                with open(str(os.getcwd()) + '/Data_loader/Data/market_data/train_cs_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
                     a=pickle.load(f)
                     for k in range(len(a.samples)):
                         train_data.append([a.samples[k], a.labels[k]])
 
-                with open('./Data/market_data/test_cs_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
+                with open(str(os.getcwd()) + '/Data_loader/Data/market_data/test_cs_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
                     a=pickle.load(f)
                     for k in range(len(a.samples)):
                         test_data.append([a.samples[k], a.labels[k]])
@@ -88,12 +88,12 @@ class DataLoaderMarket():
             for j in range(test_time_series[1]):
                 train_data = []
                 test_data = []
-                with open('./Data/market_data/train_ds_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
+                with open(str(os.getcwd()) + '/Data_loader/Data/market_data/train_ds_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
                     a=pickle.load(f)
                     for k in range(len(a.samples)):
                         train_data.append([a.samples[k], a.labels[k]])
 
-                with open('./Data/market_data/test_ds_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
+                with open(str(os.getcwd()) + '/Data_loader/Data/market_data/test_ds_' + str(i) + '_' + str(j) + '_2.pickle','rb') as f: 
                     a=pickle.load(f)
                     for k in range(len(a.samples)):
                         test_data.append([a.samples[k], a.labels[k]])
@@ -107,6 +107,16 @@ class DataLoaderMarket():
         self.len_test_ds = len(self.meta_test_ds)
         self.len_train_cs = len(self.meta_train_cs)
         self.len_test_cs = len(self.meta_test_cs)
+    
+    def combine(self, data):
+        ret_X = data[0][0]
+        for i in range(1, len(data)):
+            ret_X = torch.cat((ret_X, data[i][0]), 0)
+        
+        ret_Y = data[0][1]
+        for i in range(1, len(data)):
+            ret_Y = torch.cat((ret_Y, data[i][1]), 0)
+        return (ret_X, ret_Y)
     def get_task(self, kind = "meta_train", data_type = "flat"):
         ind = 0
         if(kind == "meta_train"):
@@ -121,19 +131,17 @@ class DataLoaderMarket():
                 ind = random.randint(0, self.len_test_ds - 1)
         if(kind == "meta_train"):
             if(data_type == "flat"):
-                return (self.meta_train_cs[ind][0], self.meta_train_cs[ind][1])
+                return (self.combine(self.meta_train_cs[ind][0]), self.combine(self.meta_train_cs[ind][1]))
             
-            return (self.meta_train_ds[ind][0], self.meta_train_ds[ind][1])
+            return (self.combine(self.meta_train_ds[ind][0]), self.combine(self.meta_train_ds[ind][1]))
         else:
             if(data_type == "flat"):
-                return (self.meta_test_cs[ind][0], self.meta_test_cs[ind][1])
+                return (self.combine(self.meta_test_cs[ind][0]), self.combine(self.meta_test_cs[ind][1]))
             
-            return (self.meta_test_ds[ind][0], self.meta_test_ds[ind][1])
+            return (self.combine(self.meta_test_ds[ind][0]), self.combine(self.meta_test_ds[ind][1]))
 
 if __name__ == "__main__":
     loader = DataLoaderMarket()
-    (train, test) = loader.get_task(kind = "meta_test", data_type= "time_series");
-    for i in train:
-        print(i[0].shape, i[1].shape)
-    for i in test:
-        print(i[0].shape, i[1].shape)
+    (train, test) = loader.get_task(kind = "meta_test", data_type= "flat");
+    print(train[0].shape, train[1].shape)
+    print(test[0].shape, test[1].shape)
