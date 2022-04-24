@@ -28,21 +28,35 @@ class ARM_LL(nn.module):
 
   def predict(self, X_test, Y_test, train=False):
     self.train()
-    with higher.innerloop_ctx(self.model_prediction, self.optimizer, copy_initial_weights=False) as (fmodel, diffopt):
-      logits = fmodel.predict(X_test)
-      floss = self.model_loss(logits)
-      diffopt.step(floss)
+    if self.data == 'market':
+      logits_ret, loss_ret = [], []
+      for i in range(10): 
+        with higher.innerloop_ctx(self.model_prediction[i], self.optimizer, copy_initial_weights=False) as (fmodel, diffopt):
+          logits = fmodel.predict(X_test)
+          floss = self.model_loss[i](logits)
+          diffopt.step(floss)
 
-      logits = model.predict(X_test)
-      loss = 0
-      if train:
-        if self.data == 'market':
-          pass
-        else:
-          for loss_fn in self.loss:
-            loss += loss_fn(logits, Y_test)
-        loss.backward()
-      return logits, loss  
+          logits = fmodel.predict(X_test)
+          if train:
+            if i >5:
+              loss = self.loss[i](logits, Y_test[:,i].long())
+            else:
+              loss = self.loss[i](logits[:,0], Y_test[:,i].long())
+            loss.backward()
+          logits_ret.append(logits)
+          loss_ret.append(loss)
+      return logits_ret, loss_ret
+    else:
+      with higher.innerloop_ctx(self.model_prediction, self.optimizer, copy_initial_weights=False) as (fmodel, diffopt):
+        logits = fmodel.predict(X_test)
+        floss = self.model_loss(logits)
+        diffopt.step(floss)
+
+        logits = fmodel.predict(X_test)
+        if train:
+          loss = self.loss[0](logits, Y_test)
+          loss.backward()
+      return logits, loss
   
   def learn(self, X_test, Y_test):
     self.train()
@@ -50,3 +64,38 @@ class ARM_LL(nn.module):
     logits, loss = self.predict(X_test, Y_test, True)
     self.optimizer.step()
 
+  def accuracy_market(self, logits, Y):
+    accuracy = []
+    for i in range(10):
+        if(i < 6):
+            accuracy.append(((logits[i][ :, 0] - Y[:, i])*(logits[i][ :, 0] - Y[:, i])).sum().data)
+        else:
+            preds = np.argmax(logits[i].detach().cpu().numpy(), axis=1)
+            acc = np.mean(preds == Y[:, i].detach().cpu().numpy().reshape(-1))
+            accuracy.append(acc)
+    return accuracy
+    
+  def accuracy(self, logits, Y):
+    preds = np.argmax(logits.detach().cpu().numpy(), axis=1)
+    accuracy = np.mean(preds == Y.detach().cpu().numpy().reshape(-1))
+    return accuracy
+      
+  def accuracy_arc(Net,logits,y_test):
+    #Net.eval()
+    m = 0
+    y_pred = logits
+    prob, predicted = torch.max(y_pred, 1)
+    correct = 0
+    for i in range(0, y_test.size(0), 4):
+        cnt = 0
+        for j in range(4):
+            cnt += (y_test[i + j] == predicted[i + j])
+        if(cnt == 4):
+            correct += 1
+        m += 1
+    accuracy = correct/m
+    #Net.train()
+    return accuracy
+
+if __name__ == "__main__":
+  

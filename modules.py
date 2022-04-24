@@ -22,7 +22,7 @@ class ContextNet2D(nn.Module):
         return x
     
 class MLP(nn.Module):
-    def __init__(self,dims=[5,3,2],task='classification',lr=1e-3):
+    def __init__(self,dims=[5,3,2],task='classification', norm_reduce = False, lr=1e-3):
         super(MLP,self).__init__()
         # Neural network layers assigned as attributes of a Module subclass
         # have their parameters registered for training automatically.
@@ -42,6 +42,8 @@ class MLP(nn.Module):
         x = self.linear_layers[-1](x)
         x = self.relu(x)
         if(self.task == "regression"):
+            if self.norm_reduce:
+                x = torch.norm(x)
             return x
         return self.logsoft(x)
         
