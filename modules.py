@@ -33,6 +33,7 @@ class MLP(nn.Module):
         self.relu = nn.ReLU()
         self.task = task
         self.logsoft = nn.LogSoftmax(dim=-1)
+        self.norm_reduce = norm_reduce
         self.optimizer = optim.Adam(self.parameters(),lr=lr)
     def forward(self,x):
         ### Insert your code here

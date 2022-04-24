@@ -33,44 +33,58 @@ class ARM_LL(nn.Module):
     else:
       self.loss.append(nn.NLLLoss(weight = torch.tensor([0.25, 0.75])))
     self.learning_rate = learning_rate
-    self.optimizer = torch.optim.Adam(self.model_prediction.parameters(), lr = self.learning_rate)
-
+ 
+    if(self.data == "market"):
+        params = list([])
+        for i in range(10):
+            params = params + list(self.model_prediction[i].parameters()) + list(self.model_loss[i].parameters())
+    else:
+        params = list(self.model_prediction.parameters()) + list(self.model_loss.parameters())
+    self.optimizer = torch.optim.Adam(params, lr = self.learning_rate)
+    if(self.data == "market"):
+        self.meta_optim = []
+        for i in range(10):
+            self.meta_optim.append(torch.optim.Adam(self.model_prediction[i].parameters(), lr=self.learning_rate))
+    else:
+        self.meta_optim = torch.optim.Adam(self.model_prediction.parameters(), lr=self.learning_rate)
   def predict(self, X_test, Y_test = None, train=False):
     self.train()
     if self.data == 'market':
       logits_ret, loss_ret = [], []
       for i in range(10): 
-        with higher.innerloop_ctx(self.model_prediction[i], self.optimizer, copy_initial_weights=False) as (fmodel, diffopt):
+        with higher.innerloop_ctx(self.model_prediction[i], self.meta_optim[i], copy_initial_weights=False) as (fmodel, diffopt):
           logits = fmodel(X_test)
           floss = self.model_loss[i](logits)
           diffopt.step(floss)
 
           logits = fmodel(X_test)
+          loss = 0
           if train:
             if i >5:
               loss = self.loss[i](logits, Y_test[:,i].long())
             else:
-              loss = self.loss[i](logits[:,0], Y_test[:,i].long())
+              loss = self.loss[i](logits[:,0], Y_test[:,i].float())
             loss.backward()
           logits_ret.append(logits)
           loss_ret.append(loss)
-      return logits_ret, loss_ret
+      return logits_ret
     else:
-      with higher.innerloop_ctx(self.model_prediction, self.optimizer, copy_initial_weights=False) as (fmodel, diffopt):
+      with higher.innerloop_ctx(self.model_prediction, self.meta_optim, copy_initial_weights=False) as (fmodel, diffopt):
         logits = fmodel(X_test)
         floss = self.model_loss(logits)
         diffopt.step(floss)
 
         logits = fmodel(X_test)
+        loss = 0
         if train:
           loss = self.loss[0](logits, Y_test)
           loss.backward()
-      return logits, loss
+      return logits
   
   def learn(self, X_test, Y_test):
     self.train()
     self.optimizer.zero_grad()
-    logits, loss = self.predict(X_test, Y_test, True)
+    logits = self.predict(X_test, Y_test, True)
     self.optimizer.step()
 
   def accuracy_market(self, logits, Y):
@@ -352,35 +366,48 @@ class ARM_BN(nn.Module):
         accuracy = correct/m
         #Net.train()
         return accuracy
+from tqdm import tqdm
 def runMarketSeries(algo_type):
     loader = DataLoaderMarket()
-    model_context = model.SimpleGRU(input_size=18, hidden_size=32, num_layers=2, output_size=18, task = "regression", lr = 0.00005)
+    if(algo_type == "ARM_CML"):
+        model_context = model.SimpleGRU(input_size=18, hidden_size=32, num_layers=2, output_size=18, task = "regression", lr = 0.00005)
+    elif(algo_type == "ARM_LL"):
+        model_context = []
     models = []
     for i in range(6):
         if(algo_type == "ARM_BN"):
             model_pred = model.SimpleGRU(input_size=18, hidden_size=32, num_layers=2, output_size=1, task = "regression", lr = 0.00005)
         elif(algo_type == "ARM_CML"):
             model_pred = model.SimpleGRU(input_size=36, hidden_size=32, num_layers=2, output_size=1, task = "regression", lr = 0.00005)
+        elif(algo_type == "ARM_LL"):
+            model_context.append(model.MLP(dims = [1, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3))
+            model_pred = model.SimpleGRU(input_size=18, hidden_size=16, num_layers=1, output_size=1, task = "regression", lr = 0.00005)
         models.append(model_pred)
     for i in range(4):
         if(algo_type == "ARM_BN"):
             model_pred = model.SimpleGRU(input_size=18, hidden_size=64, num_layers=2, output_size=4, task = "classification", lr = 0.00005)
         elif(algo_type == "ARM_CML"):
             model_pred = model.SimpleGRU(input_size=36, hidden_size=64, num_layers=2, output_size=4, task = "classification", lr = 0.00005)
+        elif(algo_type == "ARM_LL"):
+            model_context.append(model.MLP(dims = [4, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3))
+            model_pred = model.SimpleGRU(input_size=18, hidden_size=16, num_layers=1, output_size=4, task = "regression", lr = 0.00005)
         models.append(model_pred)
     if(algo_type == "ARM_BN"):
         arm_model = ARM_BN( model_prediction=models, labels_type="market", data_type="time_series", learning_rate=1e-6)
     elif(algo_type == "ARM_CML"):
         arm_model = ARM_CML( model_context=model_context ,model_prediction=models, labels_type="market", data_type="time_series", learning_rate=1e-6)
+    elif(algo_type == "ARM_LL"):
+        arm_model = ARM_LL(model_loss = model_context, model_prediction = models, labels_type = "market", learning_rate = 1e-5)
+
     samples = 50
     for j in range(1000):
         acc = [0]*10
         print("---------------EPOCH {} ----------------------".format( j))
-        for i in range(samples):
+        for i in tqdm(range(samples)):
             train, test = loader.get_task("meta_train", "series")
-            arm_model.learnStream(train[0], train[1], test[0], test[1])
+            arm_model.learn(train[0], train[1])
             train, test = loader.get_task("meta_test", "series")
-            accur = arm_model.accuracy_market(arm_model.predictStream(train[0], test[0]), test[1])
+            accur = arm_model.accuracy_market(arm_model.predict(train[0]), train[1])
             for j1 in range(10):
                 acc[j1] += accur[j1]
         for i in range(10):
@@ -390,33 +417,44 @@ def runMarketSeries(algo_type):
                 print("Accuracy: ", acc[i]/samples)
 def runMarketFlat(algo_type):
     loader = DataLoaderMarket()
-    model_context = model.MLP(dims = [23, 62, 23])
+    if(algo_type == "ARM_CML"):
+        model_context = model.MLP(dims = [23, 62, 23])
+    elif(algo_type == "ARM_LL"):
+        model_context = []
     models = []
     for i in range(6):
         if(algo_type == "ARM_BN"):
             model_pred = model.MLP(dims=[23, 32, 1], task="regression")
         elif(algo_type == "ARM_CML"):
             model_pred = model.MLP(dims=[46, 32, 1], task="regression")
+        elif(algo_type == "ARM_LL"):
+            model_context.append(model.MLP(dims = [1, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3))
+            model_pred = model.MLP(dims=[23, 32, 1], task="regression")
         models.append(model_pred)
     for i in range(4):
         if(algo_type == "ARM_BN"):
             model_pred = model.MLP(dims=[23, 32, 4], task="classification")
         elif(algo_type == "ARM_CML"):
             model_pred = model.MLP(dims=[46, 32, 4], task="classification")
+        elif(algo_type == "ARM_LL"):
+            model_context.append(model.MLP(dims = [4, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3))
+            model_pred = model.MLP(dims=[23, 32, 4], task="classification")
         models.append(model_pred)
     if(algo_type == "ARM_BN"):
         arm_model = ARM_BN( model_prediction=models, labels_type="market", data_type="flat", learning_rate=1e-6)
     elif(algo_type == "ARM_CML"):
         arm_model = ARM_CML(model_context=model_context, model_prediction=models, labels_type="market", data_type="flat", learning_rate=1e-6)
+    elif(algo_type == "ARM_LL"):
+        arm_model = ARM_LL(model_loss = model_context, model_prediction = models, labels_type = "market", learning_rate = 1e-5)
 
-    samples = 1000
+    samples = 100
     for j in range(1000):
         acc = [0]*10
         print("---------------EPOCH {} ----------------------".format( j))
-        for i in range(samples):
+        for i in tqdm(range(samples)):
             train, test = loader.get_task("meta_train", "flat")
             # print(test[1][:,5])
-            arm_model.learnStream(train[0], train[1], test[0], test[1])
+            arm_model.learn(train[0], train[1])
             train, test = loader.get_task("meta_test", "flat")
             accur = arm_model.accuracy_market(arm_model.predict(test[0]), test[1])
             for j1 in range(10):
@@ -428,43 +466,42 @@ def runMarketFlat(algo_type):
                 print("Accuracy: ", acc[i]/samples)
 def runOptions(algo_type):
     loader = DataLoaderOptions()
-    model_context = model.MLP(dims = [148, 124, 148])
     if(algo_type == "ARM_BN"):
         model_pred = model.MLP(dims=[148, 64, 32, 2])
-    elif(algo_type == "ARM_CML"):
-        model_pred = model.MLP(dims=[296, 64, 32, 2])
-
-
-    if(algo_type == "ARM_BN"):
         arm_model = ARM_BN( model_prediction=model_pred, labels_type="options", data_type="flat", learning_rate=1e-6)
     elif(algo_type == "ARM_CML"):
+        model_pred = model.MLP(dims=[296, 64, 32, 2])
+        model_context = model.MLP(dims = [148, 124, 148])
         arm_model = ARM_CML(model_context=model_context, model_prediction=model_pred, labels_type="options", data_type="flat", learning_rate=1e-6)
+    elif(algo_type == "ARM_LL"):
+        model_pred = model.MLP(dims=[148, 64, 32, 2])
+        model_context = model.MLP(dims = [2, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3)
+        arm_model = ARM_LL(model_loss = model_context, model_prediction = model_pred, labels_type = "options", learning_rate = 1e-5)
+
     samples = 100
     for j in range(1000):
         acc = 0
         for i in range(samples):
             train, test = loader.get_task("meta_train", "CE")
-            arm_model.learnStream(train[0], train[1], test[0], test[1])
+            arm_model.learn(train[0], train[1])
             train, test = loader.get_task("meta_test", "PE")
             acc += arm_model.accuracy(arm_model.predict(test[0]), test[1])
         print(acc/samples)
     
 def runARC(algo_type):
     loader = DataLoader("FewShotPaddedARC")
-    model_context = model.MLP(dims = [2, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3)
     if(algo_type == "ARM_BN"):
         model_pred = model.MLP(dims=[200, 64, 32, 2])
-    elif(algo_type == "ARM_CML"):
-        model_pred = model.MLP(dims=[400, 64, 32, 2])
-    elif(algo_type == "ARM_LL"):
-        model_pred = model.MLP(dims=[200, 64, 32, 2])
-
-    if(algo_type == "ARM_BN"):
         arm_model = ARM_BN( model_prediction=model_pred, labels_type="arc", data_type="flat", learning_rate=1e-6)
     elif(algo_type == "ARM_CML"):
+        model_context = model.MLP(dims = [200, 124, 200])
+        model_pred = model.MLP(dims=[400, 64, 32, 2])
         arm_model = ARM_CML(model_context=model_context, model_prediction=model_pred, labels_type="arc", data_type="flat", learning_rate=1e-6)
     elif(algo_type == "ARM_LL"):
+        model_context = model.MLP(dims = [2, 8, 1], task = "regression", norm_reduce = True, lr = 1e-3)
+        model_pred = model.MLP(dims=[200, 64, 32, 2])
         arm_model = ARM_LL(model_loss = model_context, model_prediction = model_pred, labels_type = "arc", learning_rate = 1e-5)
+    
     samples = 1000
     for j in range(1000):
         acc = 0
@@ -472,9 +509,7 @@ def runARC(algo_type):
             train, test = loader.get_task("meta_train")
             arm_model.learn(train[0], train[1])
             train, test = loader.get_task("meta_test")
-            acc += arm_model.accuracy(arm_model.predict(train[0]), train[1])
+            acc += arm_model.accuracy_arc(arm_model.predict(train[0]), train[1])
         print(acc/samples)
 if __name__ == "__main__":
-    runARC("ARM_LL")
-    
-    
+    runMarketSeries("ARM_BN")
