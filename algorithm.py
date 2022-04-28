@@ -503,7 +503,7 @@ def runARC(algo_type):
         arm_model = ARM_LL(model_loss = model_context, model_prediction = model_pred, labels_type = "arc", learning_rate = 1e-5)
     
     samples = 1000
-    for j in range(1000):
+    for j in range(10000):
         acc = 0
         for i in range(samples):
             train, test = loader.get_task("meta_train")
@@ -512,4 +512,4 @@ def runARC(algo_type):
             acc += arm_model.accuracy_arc(arm_model.predict(train[0]), train[1])
         print(acc/samples)
 if __name__ == "__main__":
-    runMarketSeries("ARM_BN")
+    runARC("ARM_LL")
