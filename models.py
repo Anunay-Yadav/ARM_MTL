@@ -7,7 +7,6 @@ import numpy as np
 from Data_loader.MarketData import *
 import modules as model
 import higher
-
 class ARM_CNP(nn.Module):
     def __init__(self, model_context, model_prediction, num_labels, labels_type = "market", data_type = "flat", learning_rate = 1e-5) -> None:
         super().__init__()
@@ -102,7 +101,6 @@ class ARM_CNP(nn.Module):
         accuracy = correct/m
         #Net.train()
         return accuracy
-
 class ARM_LL(nn.module):
   def __init__(self, model_loss, model_prediction, labels_type = "market", learning_rate = 1e-5) -> None:
     super().__init__()
@@ -191,6 +189,3 @@ class ARM_LL(nn.module):
     accuracy = correct/m
     #Net.train()
     return accuracy
-
-if __name__ == "__main__":
-  

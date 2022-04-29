@@ -1,0 +1,7 @@
+1. testing overlapping vs non overlapping domain performance
+2. ARM_CML, ARM_BN, ARM_LL, CNP, MLP, MAML
+3. optional: streaming
+4. 
+Innovation:
+1. ARM_CML: consider labels during meta train.
+2. ARM_LL: 
