@@ -751,7 +751,7 @@ def runOptions(algo_type):
         if(j%100 == 0):
             print()
         print("\rEpoch:", j ,", Accuracy :", acc/samples, end = " ")
-        loss.append(sum(loss_in) / len(loss_in))
+        # loss.append(sum(loss_in) / len(loss_in))
     print("")
     return loss
 def runARC(algo_type):
@@ -784,11 +784,11 @@ def runARC(algo_type):
                 loss.append(arm_model.learn(train[0], train[1]))
             train, test = loader.get_task("meta_train")
             if(algo_type == "ARM_CNP"):
-                acc += arm_model.accuracy(arm_model.predict(train[0], train[1], test[0]), test[1])
+                acc += arm_model.accuracy_arc(arm_model.predict(train[0], train[1], test[0]), test[1])
             elif(algo_type == "ARM_LL"):
-                acc += arm_model.accuracy(arm_model.predict(test[0])[0], test[1])
+                acc += arm_model.accuracy_arc(arm_model.predict(test[0])[0], test[1])
             else:
-                acc += arm_model.accuracy(arm_model.predict(test[0]), test[1])
+                acc += arm_model.accuracy_arc(arm_model.predict(test[0]), test[1])
         if(j%100 == 0):
             epoch_accuracy.append(acc/samples)
             print()
@@ -797,4 +797,4 @@ def runARC(algo_type):
     print("")
     return loss
 if __name__ == "__main__":
-    loss = runARC("ARM_CNP")
+    loss = runMarketFlat("ARM_BN")
